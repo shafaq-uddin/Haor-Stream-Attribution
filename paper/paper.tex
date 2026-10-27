@@ -1,0 +1,202 @@
+% =====================================================================
+%  paper.tex  -  conference paper (IEEE two-column style)
+%  Compile:  python make_paper_assets.py
+%            pdflatex paper && bibtex paper && pdflatex paper && pdflatex paper
+%  On Overleaf: upload all files (paper.tex, refs.bib, tables/, figures/) and compile paper.tex.
+%  If your conference gives its own template, copy the text between \begin{document} and
+%  \end{document} into it.
+%  Red "TODO" boxes mark anything that is not yet filled from real results. Remove them all
+%  before submitting.
+%  IMPORTANT: sentences in Results quote numbers from your CSV files but their WORDING (for example
+%  ``usually improves'', ``about what chance gives'') assumes the pilot outcome. After you regenerate with
+%  new results, re-read every sentence and edit the wording to match.
+% =====================================================================
+\documentclass[conference]{IEEEtran}
+\usepackage[T1]{fontenc}
+\usepackage{amsmath,amssymb}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{xcolor}
+\usepackage[hidelinks]{hyperref}
+
+\newcommand{\todo}[1]{\textcolor{red}{\textbf{[TODO: #1]}}}
+% load numbers produced by make_paper_assets.py (all macros default to ? if the file is missing)
+\newcommand{\nCells}{?}\newcommand{\nPos}{?}\newcommand{\pctPos}{?}\newcommand{\nSigPos}{?}
+\newcommand{\nSigNeg}{?}\newcommand{\siteCorr}{?}\newcommand{\siteSameSign}{?}\newcommand{\nPosSun}{?}\newcommand{\pctPosSun}{?}\newcommand{\sigRevText}{?}\newcommand{\expectedChance}{?}\newcommand{\sigPosText}{?}\newcommand{\nSigRev}{?}
+\newcommand{\nRawSig}{?}\newcommand{\nHolmSig}{?}\newcommand{\nTests}{32}
+\newcommand{\powerModAtN}{?}\newcommand{\powerWeakAtN}{?}
+\newcommand{\seasonAUCallLo}{?}\newcommand{\seasonAUCallHi}{?}
+\newcommand{\seasonAUChardLo}{?}\newcommand{\seasonAUChardHi}{?}
+\IfFileExists{tables/results_macros.tex}{\input{tables/results_macros.tex}}{}
+\newcommand{\placeholdertable}[1]{\IfFileExists{tables/#1.tex}{\IfFileExists{tables/#1.todo}{\todo{missing results for \detokenize{#1}}}{\resizebox{\columnwidth}{!}{\input{tables/#1.tex}}}}{\todo{run make\_paper\_assets.py (\detokenize{#1})}}}
+\newcommand{\safefig}[3]{\IfFileExists{figures/#1}{\includegraphics[width=#2\columnwidth]{figures/#1}}{\fbox{\parbox{0.9\columnwidth}{\todo{figure \detokenize{#1} missing}\\#3}}}}
+\newcommand{\safefigwide}[3]{\IfFileExists{figures/#1}{\includegraphics[width=#2\textwidth]{figures/#1}}{\fbox{\parbox{0.9\textwidth}{\todo{figure \detokenize{#1} missing}\\#3}}}}
+
+\begin{document}
+
+\title{How Many Events Does It Take to Value a Data Stream?\\
+A Cautionary Pilot on Flash-Flood Warning in the Haor Wetlands of Bangladesh}
+
+% Verify the official name of your department/institute at BUET before submission.
+\author{\IEEEauthorblockN{Md Shafaq Uddin}
+\IEEEauthorblockA{Water Resource Development\\
+Bangladesh University of Engineering and Technology\\
+Dhaka, Bangladesh\\
+mdshafaquddin8@gmail.com}}
+
+\maketitle
+
+\begin{abstract}
+Flash floods in the haor wetlands of north-eastern Bangladesh destroy pre-harvest rice, and machine-learning early-warning systems are being built from free satellite and reanalysis data. A natural question is which data stream buys how much lead time, and what it is worth. We study this question on an open, report-labelled inventory of 77 flash-flood and non-flood events (2014--2024) using group ablation of four streams (local rain, upstream rain, soil moisture, upstream river flow) at 1--4 day information cut-offs, with leave-one-year-out validation, year-cluster bootstrap intervals, multiple-test correction and a power simulation. Three findings. First, season alone gives an AUC of \seasonAUCallLo--\seasonAUCallHi{} over all events, so pooled scores flatter every model; on the 52 pre-monsoon and monsoon events the scores are far lower and the intervals wide. Second, of \nCells{} stream-by-lead-time-by-model comparisons only \nSigPos{} had a bootstrap interval clearly above zero, about what chance alone gives, and none survives correction for repeated testing; moving the local-rain point from Sylhet to Sunamganj leaves this conclusion unchanged but flips the sign of many individual effects. Third, a simulation shows that a genuinely useful stream of moderate strength would be detected in only \powerModAtN{} of studies with 77 events. We conclude that stream-level attribution of forecast value needs hundreds of events, i.e.\ daily-resolution labels, and we give a reproducible protocol for that larger study.
+\end{abstract}
+
+\begin{IEEEkeywords}
+flash flood, early warning, haor, ablation, lead time, statistical power, Bangladesh
+\end{IEEEkeywords}
+
+%% ------------------------------------------------------------------
+\section{Introduction}
+The haor basin of Sunamganj and Sylhet floods suddenly in April--May, when upstream rain over the Meghalaya foothills raises the river levels before the \emph{Boro} rice harvest. Machine-learning warning systems built on free data are appearing \cite{koli2026haorfloodalert}. Designers of such systems must decide which data streams to invest in. A stream can be valued in two ways: by how much it improves a skill score, and by how much economic value it adds under a cost--loss model \cite{richardson2000}. Both can change with the lead time of the warning.
+
+A common way to estimate a stream's contribution is group ablation: retrain without it and measure the loss. This is only informative if the evaluation can resolve the differences. With small event inventories it often cannot, and the usual safeguards (honest validation, uncertainty, multiple-test correction) matter more than the model.
+
+\textbf{Contributions.}
+(1) A lead-time-resolved group-ablation protocol for an event inventory, with leave-one-year-out validation and year-cluster bootstrap.
+(2) A demonstration, on 77 real events, that season alone explains most of the pooled skill and that stream effects are not resolved.
+(3) A power simulation that says how many events are needed.
+(4) Open code that regenerates every table and number in this paper.
+
+%% ------------------------------------------------------------------
+\section{Data}
+\subsection{Event inventory}
+We use the open dataset of \cite{koli2026dataset}: 77 events in the Sunamganj/Sylhet haor between December 2014 and October 2024, of which 32 are floods and 45 are non-floods. Flood labels come from documentary sources (flood-forecasting reports, UN situation reports, published studies) and were assigned independently of the satellite data, which is what we need to avoid circularity between labels and inputs. The sampling is by design: 42\% of events are floods, far above the climatological rate. Only the event date and the label are used from this file in the lead-time experiment; the dataset's satellite columns describe the flooded area itself and are therefore not forecasting inputs.
+
+The 25 events in October--February are all non-floods. We call the remaining 52 events (32 floods) the \emph{hard subset}, because for them the label cannot be read off the calendar (Fig.~\ref{fig:season}).
+
+\begin{figure}[t]
+\centering\safefig{fig_season.pdf}{0.95}{events by month}
+\caption{Events by month. Every event from October to February is a non-flood, so the calendar alone separates many events; the shaded March--September events form the hard subset.}\label{fig:season}
+\end{figure}
+
+\subsection{Predictor streams}
+\begin{figure}[t]
+\centering\safefig{fig_design.pdf}{0.95}{study design timeline}
+\caption{Design. For an event on day $t_0$ and lead time $h$, only data up to day $t_0-h$ enter the model (example $h=3$).}\label{fig:design}
+\end{figure}
+For each event date $t_0$ and lead time $h\in\{1,2,3,4\}$ days we compute features using data up to day $t_0-h$ only:
+\begin{itemize}
+\item \textbf{S1 local rain}: ERA5 rainfall \cite{hersbach2020} at the haor point, summed over 1, 3 and 7 days.
+\item \textbf{S2 upstream rain}: the same sums at a point in the Meghalaya foothills.
+\item \textbf{S3 soil moisture}: ERA5-Land 0--7\,cm soil moisture and its 3-day change.
+\item \textbf{S4 upstream flow}: GloFAS discharge \cite{harrigan2020} at an upstream Barak River point (value, 1-day change, 3-day maximum).
+\item \textbf{Season}: sine and cosine of the day of year of $t_0$, always included.
+\end{itemize}
+Fig.~\ref{fig:design} shows the information cut-off. Series were retrieved from Open-Meteo \cite{openmeteo}. The discharge of the target site is deliberately not used. \emph{Inputs are reanalysis, i.e.\ what actually happened up to $t_0-h$; there is no forecast error, so results are an upper bound for real forecasts.} The three points are the haor (24.89$^\circ$N, 91.87$^\circ$E, near Sylhet), the Meghalaya foothills (25.28$^\circ$N, 91.72$^\circ$E) and the upstream Barak River near Silchar (24.83$^\circ$N, 92.79$^\circ$E). As a plausibility check, the mean daily discharge at the upstream point is about 360\,m$^3$/s in January--February and about 1360\,m$^3$/s in July--August (ratio 3.8), with a minimum in March and a maximum in August, and no missing days; this confirms a monsoon-driven river but not that the grid cell is the Barak main stem.
+
+%% ------------------------------------------------------------------
+\section{Methods}
+\subsection{Models and validation}
+Two models are fitted: standardised logistic regression ($C=0.5$) and a random forest (200 trees, minimum leaf size 2) \cite{pedregosa2011}. Missing values are filled with the training-fold median. Events from one year are correlated (for example six floods in 2017), so we hold out whole years: leave-one-year-out (LOYO) over the 11 years 2014--2024. For comparison with earlier work we also report leave-one-event-out.
+
+\subsection{Group ablation}
+For each model and lead time we fit seven configurations: season only, all four streams plus season (\textsc{full}), and \textsc{full} minus each stream. The effect of a stream is the drop in AUC (\textsc{full} minus ablated) on the hard subset; positive means the stream helps. Uncertainty comes from a bootstrap that resamples \emph{years}, not events \cite{field2007,efron1993}. With $\nCells$ comparisons we also report $p$-values corrected by the Holm procedure \cite{holm1979}.
+
+\subsection{Economic value}
+We use the static cost--loss model: warning costs $C$, an unwarned flood costs $L$, $\alpha=C/L$. The relative economic value (REV) of a warning rule is its expense saving relative to the best of always/never warning, scaled by the saving of a perfect forecast \cite{richardson2000}. We warn when the predicted probability exceeds $\alpha$ and average REV over $\alpha\in[0.05,0.30]$. We found no published estimate of $\alpha$ for haor warnings. Two Bangladeshi studies report the benefits of flood warning but not the cost of the protective action per event: \cite{islam2024} report benefit--cost ratios of 79.87 to 213 for a warning system in the lower Brahmaputra basin, and \cite{zayed2025} find that households in the Jamuna floodplain estimate they could avoid about 5--6\% of their 2016 flood damages with a 3-day warning. Neither is a haor study and neither gives $C/L$. We therefore treat $\alpha$ as an assumed sensitivity range, not an estimate. Because the inventory is sampled, REV is computed at the sample flood rate and at an assumed 10\% rate; it is illustrative only.
+
+\subsection{Power simulation}
+To judge what 77 events can resolve, we simulate studies in which the label depends on a known season signal $s$ and one stream $x$ with true logistic coefficient $\beta$. We repeat the same LOYO and cluster-bootstrap test (11 groups) and record how often the 95\% interval for the AUC gain of adding $x$ lies above zero. $\beta=0.5$ is called a weak and $\beta=1.0$ a moderate stream. The simulation is simple and its effect sizes are our choice; it is illustrative.
+
+%% ------------------------------------------------------------------
+\section{Results}
+\subsection{Season explains most of the pooled skill}
+Table~\ref{tab:base} uses the dataset's own predictor columns, grouped into the same four streams. Over all 77 events, the season-only model has an AUC of \seasonAUCallLo--\seasonAUCallHi. On the 52 hard events, AUC drops to \seasonAUChardLo--\seasonAUChardHi{} and the 95\% intervals are wide. Adding the streams does not give a clear gain; for the random forest it lowers the hard-subset AUC.
+
+\begin{table}[t]
+\centering\caption{Leave-one-year-out AUC. ``Hard'' = 52 pre-monsoon and monsoon events.}\label{tab:base}
+\small\placeholdertable{tab_baseline}
+\end{table}
+
+\subsection{Lead-time ablation}
+Table~\ref{tab:lead} and Fig.~\ref{fig:lead} compare season only with the full model at each cut-off, and Table~\ref{tab:abl} and Fig.~\ref{fig:ablation} show the AUC drop when each stream is removed. Skill does not decrease smoothly with lead time, which a signal-bearing system would show, but fluctuates. Of the $\nCells$ comparisons, only $\nPos$ ($\pctPos\%$) have a positive drop, i.e.\ at the main haor point removing the stream usually \emph{improves} the score (at the alternative point of Sec.~\ref{sec:sites}, \nPosSun{} of \nCells{} do). Exactly \nSigPos{} comparison has a 95\% interval above zero: \sigPosText. \nSigNeg{} have intervals below zero. With $\nCells$ tests at the 5\% level about \expectedChance{} chance hits are expected, so the single positive result is not evidence of a real effect. Against season alone, the full logistic model is higher at three of the four cut-offs (by 0.04 to 0.08 AUC) and lower at the other, whereas the full random forest is lower at all four. In the economic-value metric, \nSigRev{} comparison was clear of zero at the sample flood rate: \sigRevText; this is a single hint among 32 and has not been corrected for repeated testing.
+
+\begin{table}[t]
+\centering\caption{AUC on the hard subset by information cut-off (days before the event).}\label{tab:lead}
+\small\placeholdertable{tab_lead_auc}
+\end{table}
+
+\begin{table}[t]
+\centering\caption{AUC drop when a stream is removed (positive = stream helps). $^{*}$: 95\% year-cluster bootstrap interval excludes zero.}\label{tab:abl}
+\small\placeholdertable{tab_ablation}
+\end{table}
+
+\begin{figure*}[t]
+\centering\safefigwide{fig_ablation.pdf}{0.78}{AUC drop per stream and lead time}
+\caption{AUC drop on the hard subset when one stream is removed, with 95\% year-cluster bootstrap intervals (leave-one-year-out). Points above zero mean the stream helps. Intervals cross zero in almost all cells, and several points lie below zero.}\label{fig:ablation}
+\end{figure*}
+
+\begin{figure}[t]
+\centering\safefig{fig_lead_auc.pdf}{0.95}{AUC by lead time}
+\caption{AUC on the hard subset by information cut-off: season only (dashed) against season plus the four streams (solid).}\label{fig:lead}
+\end{figure}
+
+\subsection{Multiple-test correction}
+Table~\ref{tab:holm} lists the five smallest $p$-values. Without correction \nRawSig{} of \nTests{} comparisons are below 0.05; after Holm correction \nHolmSig{} remain. All raw hits are at the 4-day cut-off, and three of the four have a negative AUC drop, i.e.\ removing the stream \emph{improved} the score, a pattern expected from overfitting on small samples rather than from signal.
+
+\begin{table}[t]
+\centering\caption{Smallest $p$-values among all comparisons, raw and Holm-adjusted.}\label{tab:holm}
+\small\placeholdertable{tab_holm}
+\end{table}
+
+\subsection{How many events are enough?}
+Table~\ref{tab:power} and Fig.~\ref{fig:power} give the simulated power. With 77 events a stream of moderate strength is detected in \powerModAtN{} of studies and a weak one in \powerWeakAtN. The conventional 80\% power needs on the order of 200 events for a moderate stream and on the order of 800 for a weak one, in this simulation.
+
+\begin{table}[t]
+\centering\caption{Simulated power: share of studies detecting a real stream, by number of events.}\label{tab:power}
+\small\placeholdertable{tab_power}
+\end{table}
+
+\begin{figure}[t]
+\centering\safefig{fig_power.pdf}{0.95}{power curve}
+\caption{Simulated power against number of events; dashed line: the 77 available events.}\label{fig:power}
+\end{figure}
+
+\subsection{Sensitivity to the haor point}\label{sec:sites}
+The main run takes local rain and soil moisture near Sylhet city. We repeated the whole analysis with that point moved to Sunamganj (25.07$^\circ$N, 91.40$^\circ$E); the upstream series are unchanged. The AUC drops of the two runs correlate at $r=\siteCorr$ and have the same sign in \siteSameSign{} of the \nCells{} comparisons (Table~\ref{tab:sites}). The logistic model is nearly unchanged. The random forest changes most: removing local rain lowers its AUC by 0.03 to 0.06 at Sunamganj at all four cut-offs, but raises it at Sylhet. The one comparison with a clearly positive interval (logistic, 4-day cut-off, upstream rain) is the same at both points, and so is a clearly negative one (upstream flow, logistic, 4 days). The full random forest again stays at or below season only (0.725 to 0.775 against 0.780).
+
+The conclusion that no stream is resolved is therefore unchanged, but the sign of a single stream's effect is not stable to the choice of point, which itself shows how little 77 events constrain such effects.
+
+\begin{table}[t]
+\centering\caption{Sensitivity to the location of the local-rain and soil-moisture point: stream-removal AUC drops over the 32 comparisons.}\label{tab:sites}
+\small\placeholdertable{tab_sites}
+\end{table}
+
+%% ------------------------------------------------------------------
+\section{Discussion and Limitations}
+\textbf{What this does and does not show.} It does not show that the four streams are useless; it shows that 77 events cannot tell. Related work on the same inventory reports high scores under leave-one-event-out validation \cite{koli2026haorfloodalert}; our protocols differ (year-wise holdout, no augmentation, a season baseline), so the numbers are not directly comparable, and we make no claim about their system.
+
+\textbf{Limitations.}
+(i)~Reanalysis inputs, not forecasts: skill is an upper bound and lead time here means an information cut-off, not forecast lead.
+(ii)~The sample is chosen, not climatological, so REV is illustrative; $\alpha$ is an assumed range, and the static model assumes the protective action averts the whole loss, which the household estimates of \cite{zayed2025} suggest is optimistic.
+(iii)~The main run uses a haor point near Sylhet; moving it to Sunamganj changed the sign of many random-forest effects (Sec.~\ref{sec:sites}). The upstream points were set by hand, and GloFAS may snap to a neighbouring river, which the seasonal check above cannot rule out.
+(iv)~The dataset's column definitions were not available to us, so its raw columns (Table~\ref{tab:base}) were grouped by their names and by the companion paper.
+(v)~One site, two models, one split family; the hard-subset definition (non-October--February) is ours.
+(vi)~The power simulation uses simple Gaussian predictors.
+
+\textbf{A larger study.} Daily labels (water-level exceedances at flood-forecasting gauges) over ten years would give thousands of rows and, with archived forecasts, a true lead-time axis. The code in this paper is written so that the same ablation, bootstrap and correction steps apply unchanged.
+
+%% ------------------------------------------------------------------
+\section{Conclusion}
+On 77 report-labelled haor flood events, season alone gives most of the pooled skill, stream-level ablations are indistinguishable from noise after accounting for repeated testing, and a simulation shows that hundreds of events are required to value a data stream. Researchers building early-warning systems from small inventories should report a season-only baseline, hold out whole years, and give uncertainty before ranking data sources.
+
+\section*{Data and Code Availability}
+All scripts, result tables and the \LaTeX{} source that regenerate this paper are available at \url{https://github.com/YOUR-USERNAME/haor-stream-attribution}\todo{replace YOUR-USERNAME with your GitHub user name, then delete this note}. The event inventory is from \cite{koli2026dataset} (CC BY 4.0).
+
+\section*{Acknowledgment}
+The author thanks the creators of the open haor flood event inventory for releasing it under CC BY 4.0. Weather data by Open-Meteo.com (CC BY 4.0). Contains modified Copernicus Climate Change Service information.
+% Add supervisor and funding here when available.
+
+\bibliographystyle{IEEEtran}
+\bibliography{refs}
+
+\end{document}

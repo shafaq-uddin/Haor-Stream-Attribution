@@ -1,0 +1,13 @@
+effect,N_events,power
+weak stream (beta=0.5),40,0.03333333333333333
+weak stream (beta=0.5),77,0.06666666666666667
+weak stream (beta=0.5),150,0.1
+weak stream (beta=0.5),300,0.38333333333333336
+weak stream (beta=0.5),600,0.6833333333333333
+weak stream (beta=0.5),1200,0.9833333333333333
+moderate stream (beta=1.0),40,0.11666666666666667
+moderate stream (beta=1.0),77,0.3333333333333333
+moderate stream (beta=1.0),150,0.6833333333333333
+moderate stream (beta=1.0),300,0.95
+moderate stream (beta=1.0),600,1.0
+moderate stream (beta=1.0),1200,1.0
