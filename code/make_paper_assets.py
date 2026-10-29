@@ -11,6 +11,7 @@ Inputs (all optional; a missing file gives a red TODO box in the PDF instead of 
     outputs6/results_all.csv          from step6_leadtime.py
     outputs6/stream_pvalues_holm.csv  from step8_stats.py
     outputs6/power_analysis.csv       from step8_stats.py
+    outputs6/gb_*.csv                 from step9_third_model.py (optional robustness check)
     outputs6/fig_drops_logit.png, fig_drops_rf.png, fig_power.png   (figures)
 
 Run:   python make_paper_assets.py          then compile:  pdflatex paper && bibtex paper && pdflatex paper && pdflatex paper
@@ -173,6 +174,42 @@ if os.path.exists("site_sensitivity_summary.csv") and os.path.exists("site_sensi
 else:
     todo("tab_sites", "site_sensitivity_*.csv (run compare_sites.py)")
     macros.update(siteCorr="?", siteSameSign="?", nPosSun="?", pctPosSun="?")
+
+# ---------------------------------------------------------------- Table 7: third model, gradient boosting (step 9, optional)
+need = [f"{OUT6}/gb_stream_drops.csv", f"{OUT6}/gb_results_all.csv", f"{OUT6}/gb_pvalues_holm.csv"]
+if all(os.path.exists(q) for q in need):
+    gd = pd.read_csv(need[0], float_precision="round_trip"); gd = gd[gd.base_rate.astype(str) == "sample"]
+    gr = pd.read_csv(need[1], float_precision="round_trip"); gp = pd.read_csv(need[2], float_precision="round_trip")
+    leads = sorted(gr.lead_days.unique())
+    lines = [r"\begin{tabular}{@{}l" + "r" * len(leads) + r"@{}}", r"\toprule",
+             "Gradient boosting & " + " & ".join(f"{h} d" for h in leads) + r" \\", r"\midrule"]
+    for cfg, lab in (("SEASON", "AUC, season only"), ("FULL", "AUC, season + 4 streams")):
+        v = [gr[(gr.config == cfg) & (gr.lead_days == h)].auc_hard.iloc[0] for h in leads]
+        lines.append(f"{lab} & " + " & ".join(fmt(x, 3) for x in v) + r" \\")
+    lines.append(r"\midrule")
+    lines.append(r"\multicolumn{" + str(len(leads) + 1) + r"}{@{}l}{AUC drop when stream removed} \\")
+    for st in NAMES:
+        cells = []
+        for h in leads:
+            q = gd[(gd.stream == st) & (gd.lead_days == h)].iloc[0]
+            cells.append(f"{q.d_auc:+.3f}" + (r"$^{*}$" if q.auc_sig else ""))
+        lines.append(f"{NAMES[st]} & " + " & ".join(cells) + r" \\")
+    lines += [r"\bottomrule", r"\end{tabular}"]
+    write("tab_gb", "\n".join(lines) + "\n")
+    se = gr[gr.config == "SEASON"].iloc[0]; fu = gr[gr.config == "FULL"].sort_values("lead_days")
+    s2 = gd[gd.stream == "S2_upstream_rain"]
+    macros.update(gbSeasonHard=fmt(se.auc_hard, 2), gbSeasonAll=fmt(se.auc_all, 2),
+                  gbFullBelow=str(int((fu.auc_hard.values < se.auc_hard).sum())),
+                  gbNCells=str(len(gd)), gbPos=str(int((gd.d_auc > 0).sum())),
+                  gbSigPos=str(int(((gd.auc_sig) & (gd.d_auc > 0)).sum())), gbSigNeg=str(int(((gd.auc_sig) & (gd.d_auc < 0)).sum())),
+                  gbRawSig=str(int((gp.p_raw < 0.05).sum())), gbMinP=f"{gp.p_raw.min():.3f}",
+                  gbHolmSixteen=str(int((gp.p_holm_16 < 0.05).sum())), gbHolmJoint=str(int((gp.p_holm_48 < 0.05).sum())),
+                  gbRevPos=str(int(((gd.rev_sig) & (gd.d_rev > 0)).sum())), gbRevNeg=str(int(((gd.rev_sig) & (gd.d_rev < 0)).sum())),
+                  gbStwoPos=str(int((s2.d_auc > 0).sum())), gbStwoLo=f"{s2.d_auc.min():.3f}", gbStwoHi=f"{s2.d_auc.max():.3f}")
+else:
+    todo("tab_gb", "outputs6/gb_*.csv (run step9_third_model.py on the real data)")
+    macros.update({k: "?" for k in ["gbSeasonHard", "gbSeasonAll", "gbFullBelow", "gbNCells", "gbPos", "gbSigPos", "gbSigNeg", "gbRawSig",
+                                    "gbMinP", "gbHolmSixteen", "gbHolmJoint", "gbRevPos", "gbRevNeg", "gbStwoPos", "gbStwoLo", "gbStwoHi"]})
 
 # ---------------------------------------------------------------- figures (all drawn here from your CSV files)
 import matplotlib

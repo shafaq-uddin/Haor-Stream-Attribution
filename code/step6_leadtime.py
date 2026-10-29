@@ -25,7 +25,7 @@ warnings.filterwarnings("ignore")
 
 # ------------------------------------------------------------------ settings
 EVENTS   = "events.csv"
-SYNTHETIC = False                   # True = fake daily data, only to test the code
+SYNTHETIC = os.environ.get("SYNTHETIC", "0") == "1"   # "1" = fake daily data, only to test the code
 # Which haor point to use for LOCAL rain / soil moisture. Default = near Sylhet city (the main run).
 # For the sensitivity run, in Colab BEFORE running this script, execute:
 #     import os; os.environ["HAOR_SITE"] = "sunamganj"

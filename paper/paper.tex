@@ -25,6 +25,8 @@
 \newcommand{\nSigNeg}{?}\newcommand{\siteCorr}{?}\newcommand{\siteSameSign}{?}\newcommand{\nPosSun}{?}\newcommand{\pctPosSun}{?}\newcommand{\sigRevText}{?}\newcommand{\expectedChance}{?}\newcommand{\sigPosText}{?}\newcommand{\nSigRev}{?}
 \newcommand{\nRawSig}{?}\newcommand{\nHolmSig}{?}\newcommand{\nTests}{32}
 \newcommand{\powerModAtN}{?}\newcommand{\powerWeakAtN}{?}
+\newcommand{\gbSeasonHard}{?}\newcommand{\gbSeasonAll}{?}\newcommand{\gbFullBelow}{?}\newcommand{\gbNCells}{?}\newcommand{\gbPos}{?}\newcommand{\gbSigPos}{?}\newcommand{\gbSigNeg}{?}
+\newcommand{\gbRawSig}{?}\newcommand{\gbMinP}{?}\newcommand{\gbHolmSixteen}{?}\newcommand{\gbHolmJoint}{?}\newcommand{\gbRevPos}{?}\newcommand{\gbRevNeg}{?}\newcommand{\gbStwoPos}{?}\newcommand{\gbStwoLo}{?}\newcommand{\gbStwoHi}{?}
 \newcommand{\seasonAUCallLo}{?}\newcommand{\seasonAUCallHi}{?}
 \newcommand{\seasonAUChardLo}{?}\newcommand{\seasonAUChardHi}{?}
 \IfFileExists{tables/results_macros.tex}{\input{tables/results_macros.tex}}{}
@@ -47,7 +49,7 @@ mdshafaquddin8@gmail.com}}
 \maketitle
 
 \begin{abstract}
-Flash floods in the haor wetlands of north-eastern Bangladesh destroy pre-harvest rice, and machine-learning early-warning systems are being built from free satellite and reanalysis data. A natural question is which data stream buys how much lead time, and what it is worth. We study this question on an open, report-labelled inventory of 77 flash-flood and non-flood events (2014--2024) using group ablation of four streams (local rain, upstream rain, soil moisture, upstream river flow) at 1--4 day information cut-offs, with leave-one-year-out validation, year-cluster bootstrap intervals, multiple-test correction and a power simulation. Three findings. First, season alone gives an AUC of \seasonAUCallLo--\seasonAUCallHi{} over all events, so pooled scores flatter every model; on the 52 pre-monsoon and monsoon events the scores are far lower and the intervals wide. Second, of \nCells{} stream-by-lead-time-by-model comparisons only \nSigPos{} had a bootstrap interval clearly above zero, about what chance alone gives, and none survives correction for repeated testing; moving the local-rain point from Sylhet to Sunamganj leaves this conclusion unchanged but flips the sign of many individual effects. Third, a simulation shows that a genuinely useful stream of moderate strength would be detected in only \powerModAtN{} of studies with 77 events. We conclude that stream-level attribution of forecast value needs hundreds of events, i.e.\ daily-resolution labels, and we give a reproducible protocol for that larger study.
+Flash floods in the haor wetlands of north-eastern Bangladesh destroy pre-harvest rice, and machine-learning early-warning systems are being built from free satellite and reanalysis data. A natural question is which data stream buys how much lead time, and what it is worth. We study this question on an open, report-labelled inventory of 77 flash-flood and non-flood events (2014--2024) using group ablation of four streams (local rain, upstream rain, soil moisture, upstream river flow) at 1--4 day information cut-offs, with leave-one-year-out validation, year-cluster bootstrap intervals, multiple-test correction and a power simulation. Three findings. First, season alone gives an AUC of \seasonAUCallLo--\seasonAUCallHi{} over all events, so pooled scores flatter every model; on the 52 pre-monsoon and monsoon events the scores are far lower and the intervals wide. Second, of \nCells{} stream-by-lead-time-by-model comparisons only \nSigPos{} had a bootstrap interval clearly above zero, about what chance alone gives, and none survives correction for repeated testing, nor does a third model (gradient boosting) change this; moving the local-rain point from Sylhet to Sunamganj leaves this conclusion unchanged but flips the sign of many individual effects. Third, a simulation shows that a genuinely useful stream of moderate strength would be detected in only \powerModAtN{} of studies with 77 events. We conclude that stream-level attribution of forecast value needs hundreds of events, i.e.\ daily-resolution labels, and we give a reproducible protocol for that larger study.
 \end{abstract}
 
 \begin{IEEEkeywords}
@@ -56,18 +58,52 @@ flash flood, early warning, haor, ablation, lead time, statistical power, Bangla
 
 %% ------------------------------------------------------------------
 \section{Introduction}
-The haor basin of Sunamganj and Sylhet floods suddenly in April--May, when upstream rain over the Meghalaya foothills raises the river levels before the \emph{Boro} rice harvest. Machine-learning warning systems built on free data are appearing \cite{koli2026haorfloodalert}. Designers of such systems must decide which data streams to invest in. A stream can be valued in two ways: by how much it improves a skill score, and by how much economic value it adds under a cost--loss model \cite{richardson2000}. Both can change with the lead time of the warning.
+The haor basin of Sunamganj and Sylhet floods suddenly in the pre-monsoon months, from late March to May, when heavy rain over the Meghalaya hills upstream raises the river levels before the \emph{Boro} rice harvest \cite{masood2024,mondal2019}. The early flash flood of 2017 damaged Boro rice across the haors of Sunamganj \cite{mondal2019}. Machine-learning flood forecasting is now operational in large basins \cite{nevo2022} and extends to ungauged ones \cite{nearing2024}, and warning systems for the haors built on free data are appearing \cite{koli2026haorfloodalert}. Designers of such systems must decide which data streams to invest in. A stream can be valued in two ways: by how much it improves a skill score, and by how much economic value it adds under a cost--loss model \cite{richardson2000}. Both can change with the lead time of the warning.
 
-A common way to estimate a stream's contribution is group ablation: retrain without it and measure the loss. This is only informative if the evaluation can resolve the differences. With small event inventories it often cannot, and the usual safeguards (honest validation, uncertainty, multiple-test correction) matter more than the model.
+A common way to estimate a stream's contribution is group ablation: retrain without it and measure the loss. This is only informative if the evaluation can resolve the differences. With small event inventories it often cannot \cite{varoquaux2018,button2013}, and the usual safeguards (validation that respects the structure of the data \cite{roberts2017}, uncertainty for clustered data \cite{field2007}, multiple-test correction \cite{holm1979}) matter more than the model.
 
-\textbf{Contributions.}
-(1) A lead-time-resolved group-ablation protocol for an event inventory, with leave-one-year-out validation and year-cluster bootstrap.
-(2) A demonstration, on 77 real events, that season alone explains most of the pooled skill and that stream effects are not resolved.
-(3) A power simulation that says how many events are needed.
-(4) Open code that regenerates every table and number in this paper.
+\textbf{What this paper is, and is not.} It does not propose a new forecasting model, and each statistical tool we use is standard. The contribution is the \emph{combination}, applied to a real haor inventory, and what it shows:
+\begin{enumerate}
+\item \textbf{A protocol} for valuing data streams on a small event inventory: information cut-offs of 1--4 days, group ablation of four streams, whole-year hold-out, a cluster bootstrap over years, Holm correction over all comparisons, and a season-only baseline.
+\item \textbf{An empirical caution} on 77 real events: calendar season alone gives an AUC of \seasonAUCallLo--\seasonAUCallHi{} over all events, and on the 52 events where the label cannot be read off the calendar no stream effect is resolved after correction.
+\item \textbf{A power calculation} that turns the caution into a number: the inventory detects a moderate stream in only \powerModAtN{} of simulated studies.
+\item \textbf{Open code and tables} that regenerate every number in the paper.
+\end{enumerate}
+
+%% ------------------------------------------------------------------
+\section{Related Work}
+\textbf{Machine learning for flood warning.} Data-driven flood forecasting now runs operationally at large scale, trained on many thousands of gauge-years \cite{nevo2022,nearing2024}, and deep-learning rainfall--runoff models have been tested on rare extreme events \cite{frame2022}. Those settings have long records; the haor setting does not. For the haor wetlands, \cite{koli2026haorfloodalert} build a 72-hour warning system on the 77-event inventory used here, remove the seasonal signal from temperature, and report an AUC of 0.939 under leave-one-event-out validation. We take their inventory and their concern about seasonality as the starting point, but ask a different question: not how well a model scores, but which \emph{stream} adds value, and whether 77 events can tell.
+
+\textbf{Benchmarks and honest validation.} A skill score means little without a simple benchmark; \cite{seibert2018} argue for explicit upper and lower benchmarks in hydrological modelling. Our season-only model plays that role. Random cross-validation can overstate skill when samples are dependent, and blocked schemes are recommended for temporally and hierarchically structured data \cite{roberts2017}; leakage between training and test data is a common source of inflated results in machine-learning-based science \cite{kapoor2023}. We hold out whole years for this reason, and resample years in the bootstrap \cite{field2007}.
+
+\textbf{Small samples.} With few samples, cross-validated scores carry large error bars \cite{varoquaux2018}, and under-powered studies both miss real effects and exaggerate those they find \cite{button2013}. We apply this general point to attribution of data streams in flood warning, where, to our knowledge, it has not been quantified for a haor inventory.
+
+\textbf{Economic value.} The relative economic value of a forecast under a cost--loss model \cite{richardson2000,wilks2001} turns skill into a decision metric; we use it, with the assumed cost--loss range described below, rather than as a new method.
+
+\textbf{Gap.} Within the sources we searched (web searches in October 2026 on haor and Bangladesh flash-flood machine learning, input-stream ablation, and cost--loss value of data), we did not find a study that combines lead-time-resolved stream ablation, year-level validation, multiple-test correction and a power analysis for a small flood-event inventory. This is a statement about our search, not a proof that none exists.
 
 %% ------------------------------------------------------------------
 \section{Data}
+\subsection{Study area}\label{sec:area}
+The study area is the haor basin of north-eastern Bangladesh, in the Sunamganj and Sylhet districts, a low-lying region that receives water from the Meghalaya foothills to the north and from the Barak River system to the east (Fig.~\ref{fig:map}). The orange outline marks the seven districts commonly called haor districts; it is a district-level approximation and not the haor boundary. We take one query point near Sylhet to represent the haor, a second point on the Meghalaya foothills for upstream rain, and a third on the upstream Barak River near Silchar for upstream discharge. The coordinates and the plausibility checks of the upstream point are given in Sec.~\ref{sec:streams}.
+
+\IfFileExists{figures/fig_study_area_v3.pdf}{%
+\begin{figure*}[t]
+\centering\includegraphics[width=0.9\textwidth]{figures/fig_study_area_v3.pdf}
+\caption{Study area and the four predictor streams. (a)~Regional context; the box marks panel (b). (b)~Shaded relief from SRTM-derived elevation \cite{farr2007}; river line width increases with mean discharge. The orange outline encloses the seven districts commonly called haor districts (Sunamganj, Sylhet, Maulvibazar, Habiganj, Netrakona, Kishoreganj, Brahmanbaria), a district-level approximation and not the haor boundary. Filled star: haor query point near Sylhet (S1 local rain, S3 soil moisture). Open star: the alternative Sunamganj point of the sensitivity run. Triangle: S2 upstream rain over the Meghalaya foothills. Square: S4 GloFAS discharge point near Silchar. All points are reanalysis grid queries, not gauges. Rivers: HydroRIVERS \cite{lehner2013}; districts: geoBoundaries \cite{runfola2020}; borders: Natural Earth (public domain).}\label{fig:map}
+\end{figure*}}{%
+\IfFileExists{figures/fig_study_area_v2.pdf}{%
+\begin{figure*}[t]
+\centering\includegraphics[width=0.9\textwidth]{figures/fig_study_area_v2.pdf}
+\caption{Study area and the four predictor streams. (a)~Regional context; the box marks panel (b). (b)~Shaded relief from SRTM-derived elevation \cite{farr2007}. The orange outline encloses the seven districts commonly called haor districts (Sunamganj, Sylhet, Maulvibazar, Habiganj, Netrakona, Kishoreganj, Brahmanbaria), which is a district-level approximation and not the haor boundary. Filled star: the haor query point near Sylhet (S1 local rain, S3 soil moisture). Open star: the alternative Sunamganj point of the sensitivity run. Triangle: S2 upstream rain over the Meghalaya foothills. Square: S4 GloFAS discharge point near Silchar. All points are reanalysis grid queries, not gauges. District boundaries: geoBoundaries \cite{runfola2020}; country borders, rivers: Natural Earth (public domain, generalised and incomplete).}\label{fig:map}
+\end{figure*}}{%
+\begin{figure*}[t]
+\centering\safefigwide{fig_study_area.pdf}{0.88}{study area map}
+\caption{Study area and the four predictor streams. (a)~Regional context; the box marks panel (b). (b)~Filled star: the haor query point near Sylhet (S1 local rain, S3 soil moisture). Open star: the alternative Sunamganj point used in the sensitivity run. Triangle: S2 upstream rain over the Meghalaya foothills. Square: S4 GloFAS discharge point near Silchar. All points are reanalysis grid queries, not gauges. Bangladesh is shaded for orientation; this is not the haor boundary. Rivers are the generalised 1:10\,m Natural Earth lines and are incomplete. Boundaries and rivers: Natural Earth (public domain).}\label{fig:map}
+\end{figure*}
+}
+}
+
 \subsection{Event inventory}
 We use the open dataset of \cite{koli2026dataset}: 77 events in the Sunamganj/Sylhet haor between December 2014 and October 2024, of which 32 are floods and 45 are non-floods. Flood labels come from documentary sources (flood-forecasting reports, UN situation reports, published studies) and were assigned independently of the satellite data, which is what we need to avoid circularity between labels and inputs. The sampling is by design: 42\% of events are floods, far above the climatological rate. Only the event date and the label are used from this file in the lead-time experiment; the dataset's satellite columns describe the flooded area itself and are therefore not forecasting inputs.
 
@@ -78,7 +114,7 @@ The 25 events in October--February are all non-floods. We call the remaining 52 
 \caption{Events by month. Every event from October to February is a non-flood, so the calendar alone separates many events; the shaded March--September events form the hard subset.}\label{fig:season}
 \end{figure}
 
-\subsection{Predictor streams}
+\subsection{Predictor streams}\label{sec:streams}
 \begin{figure}[t]
 \centering\safefig{fig_design.pdf}{0.95}{study design timeline}
 \caption{Design. For an event on day $t_0$ and lead time $h$, only data up to day $t_0-h$ enter the model (example $h=3$).}\label{fig:design}
@@ -91,12 +127,12 @@ For each event date $t_0$ and lead time $h\in\{1,2,3,4\}$ days we compute featur
 \item \textbf{S4 upstream flow}: GloFAS discharge \cite{harrigan2020} at an upstream Barak River point (value, 1-day change, 3-day maximum).
 \item \textbf{Season}: sine and cosine of the day of year of $t_0$, always included.
 \end{itemize}
-Fig.~\ref{fig:design} shows the information cut-off. Series were retrieved from Open-Meteo \cite{openmeteo}. The discharge of the target site is deliberately not used. \emph{Inputs are reanalysis, i.e.\ what actually happened up to $t_0-h$; there is no forecast error, so results are an upper bound for real forecasts.} The three points are the haor (24.89$^\circ$N, 91.87$^\circ$E, near Sylhet), the Meghalaya foothills (25.28$^\circ$N, 91.72$^\circ$E) and the upstream Barak River near Silchar (24.83$^\circ$N, 92.79$^\circ$E). As a plausibility check, the mean daily discharge at the upstream point is about 360\,m$^3$/s in January--February and about 1360\,m$^3$/s in July--August (ratio 3.8), with a minimum in March and a maximum in August, and no missing days; this confirms a monsoon-driven river but not that the grid cell is the Barak main stem.
+Fig.~\ref{fig:map} shows where the four streams are taken, and Fig.~\ref{fig:design} shows the information cut-off. Series were retrieved from Open-Meteo \cite{openmeteo}. The discharge of the target site is deliberately not used. \emph{Inputs are reanalysis, i.e.\ what actually happened up to $t_0-h$; there is no forecast error, so results are an upper bound for real forecasts.} The three points are the haor (24.89$^\circ$N, 91.87$^\circ$E, near Sylhet), the Meghalaya foothills (25.28$^\circ$N, 91.72$^\circ$E) and the upstream Barak River near Silchar (24.83$^\circ$N, 92.79$^\circ$E). As a plausibility check, the mean daily discharge at the upstream point is about 360\,m$^3$/s in January--February and about 1360\,m$^3$/s in July--August (ratio 3.8), with a minimum in March and a maximum in August, and no missing days; this indicates a monsoon-driven river. As a further check against an independent river network, the nearest reach of HydroRIVERS \cite{lehner2013} lies within 1\,km of the point and has a long-term mean discharge of 812\,m$^3$/s and an upstream area of 19\,181\,km$^2$, which is consistent with the Barak main stem near Silchar; this supports, but does not prove, that the series describes that river.
 
 %% ------------------------------------------------------------------
 \section{Methods}
 \subsection{Models and validation}
-Two models are fitted: standardised logistic regression ($C=0.5$) and a random forest (200 trees, minimum leaf size 2) \cite{pedregosa2011}. Missing values are filled with the training-fold median. Events from one year are correlated (for example six floods in 2017), so we hold out whole years: leave-one-year-out (LOYO) over the 11 years 2014--2024. For comparison with earlier work we also report leave-one-event-out.
+Two models are fitted: standardised logistic regression ($C=0.5$) and a random forest (200 trees, minimum leaf size 2) \cite{pedregosa2011}. We chose models that suit a small inventory: only 77 events, and 52 in the hard subset, are available. Logistic regression is a low-variance baseline. The random forest can capture non-linear effects and interactions between streams with almost no tuning. Neither model was tuned. Data-hungry deep-learning models, as used in large-basin flood forecasting \cite{nevo2022,nearing2024}, are trained on records from many basins and cannot be fitted reliably to 77 events, and physically based models need gauge records that the inventory does not contain. A third model, gradient boosting, is added as a robustness check (Sec.~\ref{sec:gb}). Missing values are filled with the training-fold median. Events from one year are correlated (for example six floods in 2017), so we hold out whole years: leave-one-year-out (LOYO) over the 11 years 2014--2024. For comparison with earlier work we also report leave-one-event-out.
 
 \subsection{Group ablation}
 For each model and lead time we fit seven configurations: season only, all four streams plus season (\textsc{full}), and \textsc{full} minus each stream. The effect of a stream is the drop in AUC (\textsc{full} minus ablated) on the hard subset; positive means the stream helps. Uncertainty comes from a bootstrap that resamples \emph{years}, not events \cite{field2007,efron1993}. With $\nCells$ comparisons we also report $p$-values corrected by the Holm procedure \cite{holm1979}.
@@ -171,16 +207,26 @@ The conclusion that no stream is resolved is therefore unchanged, but the sign o
 \small\placeholdertable{tab_sites}
 \end{table}
 
+\subsection{Robustness to model choice}\label{sec:gb}
+A reader may ask whether the conclusion is specific to logistic regression and the random forest. We therefore repeated the ablation with a third model, gradient boosting (100 trees of depth 2, learning rate 0.05, subsample 0.8). Its settings were fixed in advance and not tuned, because tuning on 77 events would itself overfit. Validation, bootstrap and Holm correction are unchanged. Table~\ref{tab:gb} gives the result.
+
+The conclusion is the same. On the hard subset the season-only AUC is \gbSeasonHard, and the full model is lower than it at \gbFullBelow{} of 4 cut-offs. Only \gbPos{} of \gbNCells{} stream removals lower the AUC, and \gbSigPos{} of them have a bootstrap interval above zero (\gbSigNeg{} below zero). The smallest raw $p$-value is \gbMinP, so \gbRawSig{} of the \gbNCells{} comparisons reach 0.05 before correction, and \gbHolmSixteen{} survive Holm correction (\gbHolmJoint{} survive it when applied jointly to all 48 tests of the three models). Removing upstream rain lowers the AUC at \gbStwoPos{} of 4 cut-offs (by \gbStwoLo{} to \gbStwoHi), but no interval excludes zero, so this is a hint and not a finding. In the economic-value metric, \gbRevPos{} comparison is clear of zero in the positive direction and \gbRevNeg{} in the negative direction at the sample flood rate, with no correction for repeated testing. A third model therefore gives no stream-level effect that the other two did not, and the conclusion does not depend on the choice of model.
+
+\begin{table}[t]
+\centering\caption{Gradient boosting on the hard subset (leave-one-year-out). $^{*}$: 95\% year-cluster bootstrap interval excludes zero. The settings were not tuned.}\label{tab:gb}
+\small\placeholdertable{tab_gb}
+\end{table}
+
 %% ------------------------------------------------------------------
 \section{Discussion and Limitations}
-\textbf{What this does and does not show.} It does not show that the four streams are useless; it shows that 77 events cannot tell. Related work on the same inventory reports high scores under leave-one-event-out validation \cite{koli2026haorfloodalert}; our protocols differ (year-wise holdout, no augmentation, a season baseline), so the numbers are not directly comparable, and we make no claim about their system.
+\textbf{What this does and does not show.} It does not show that the four streams are useless; it shows that 77 events cannot tell. Related work on the same inventory reports high scores under leave-one-event-out validation \cite{koli2026haorfloodalert}; our protocols differ (year-wise rather than event-wise holdout, a season baseline, and a different question), so the numbers are not directly comparable, and we make no claim about their system.
 
 \textbf{Limitations.}
 (i)~Reanalysis inputs, not forecasts: skill is an upper bound and lead time here means an information cut-off, not forecast lead.
 (ii)~The sample is chosen, not climatological, so REV is illustrative; $\alpha$ is an assumed range, and the static model assumes the protective action averts the whole loss, which the household estimates of \cite{zayed2025} suggest is optimistic.
 (iii)~The main run uses a haor point near Sylhet; moving it to Sunamganj changed the sign of many random-forest effects (Sec.~\ref{sec:sites}). The upstream points were set by hand, and GloFAS may snap to a neighbouring river, which the seasonal check above cannot rule out.
 (iv)~The dataset's column definitions were not available to us, so its raw columns (Table~\ref{tab:base}) were grouped by their names and by the companion paper.
-(v)~One site, two models, one split family; the hard-subset definition (non-October--February) is ours.
+(v)~One site, three models (two in the main analysis, a third in Sec.~\ref{sec:gb}), one split family; the hard-subset definition (non-October--February) is ours.
 (vi)~The power simulation uses simple Gaussian predictors.
 
 \textbf{A larger study.} Daily labels (water-level exceedances at flood-forecasting gauges) over ten years would give thousands of rows and, with archived forecasts, a true lead-time axis. The code in this paper is written so that the same ablation, bootstrap and correction steps apply unchanged.
@@ -190,7 +236,7 @@ The conclusion that no stream is resolved is therefore unchanged, but the sign o
 On 77 report-labelled haor flood events, season alone gives most of the pooled skill, stream-level ablations are indistinguishable from noise after accounting for repeated testing, and a simulation shows that hundreds of events are required to value a data stream. Researchers building early-warning systems from small inventories should report a season-only baseline, hold out whole years, and give uncertainty before ranking data sources.
 
 \section*{Data and Code Availability}
-All scripts, result tables and the \LaTeX{} source that regenerate this paper are available at \url{https://github.com/YOUR-USERNAME/haor-stream-attribution}\todo{replace YOUR-USERNAME with your GitHub user name, then delete this note}. The event inventory is from \cite{koli2026dataset} (CC BY 4.0).
+All scripts, result tables and the \LaTeX{} source that regenerate this paper are available at \url{https://github.com/shafaq-uddin/Haor-Stream-Attribution}. The event inventory is from \cite{koli2026dataset} (CC BY 4.0).
 
 \section*{Acknowledgment}
 The author thanks the creators of the open haor flood event inventory for releasing it under CC BY 4.0. Weather data by Open-Meteo.com (CC BY 4.0). Contains modified Copernicus Climate Change Service information.

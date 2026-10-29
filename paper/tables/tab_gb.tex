@@ -1,0 +1,14 @@
+\begin{tabular}{@{}lrrrr@{}}
+\toprule
+Gradient boosting & 1 d & 2 d & 3 d & 4 d \\
+\midrule
+AUC, season only & 0.697 & 0.697 & 0.697 & 0.697 \\
+AUC, season + 4 streams & 0.641 & 0.691 & 0.683 & 0.748 \\
+\midrule
+\multicolumn{5}{@{}l}{AUC drop when stream removed} \\
+S1 local rain & -0.019 & -0.030 & -0.012 & -0.002 \\
+S2 upstream rain & +0.006 & +0.017 & +0.017 & +0.038 \\
+S3 soil moisture & -0.020 & +0.013 & -0.016 & -0.016 \\
+S4 upstream flow & -0.023 & -0.023 & -0.016 & -0.011 \\
+\bottomrule
+\end{tabular}
